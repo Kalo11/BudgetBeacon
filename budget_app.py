@@ -183,10 +183,38 @@ class BudgetAppGUI:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(1, weight=1)
 
-        header = ttk.Frame(self.root, padding=(18, 14, 18, 8), style="TFrame")
+        header = tk.Frame(self.root, bg=Colors.ACCENT, padx=18, pady=12)
         header.grid(row=0, column=0, sticky="ew")
-        ttk.Label(header, text="BudgetBeacon", style="Title.TLabel").pack(side="left")
-        ttk.Button(header, text="How To Use", command=self.show_help).pack(side="right")
+        brand_wrap = tk.Frame(header, bg=Colors.ACCENT)
+        brand_wrap.pack(side="left")
+        tk.Label(
+            brand_wrap,
+            text="BudgetBeacon",
+            bg=Colors.ACCENT,
+            fg="white",
+            font=("Segoe UI", 24, "bold"),
+        ).pack(anchor="w")
+        tk.Label(
+            brand_wrap,
+            text="Guiding your budget with clarity",
+            bg=Colors.ACCENT,
+            fg=Colors.BEACON,
+            font=("Segoe UI", 10, "bold"),
+        ).pack(anchor="w")
+        tk.Button(
+            header,
+            text="How To Use",
+            command=self.show_help,
+            bg=Colors.BEACON,
+            fg=Colors.TEXT,
+            activebackground="#e69800",
+            activeforeground=Colors.TEXT,
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            padx=12,
+            pady=8,
+            cursor="hand2",
+        ).pack(side="right", pady=6)
 
         content = ttk.Frame(self.root, padding=(18, 8, 18, 12))
         content.grid(row=1, column=0, sticky="nsew")
@@ -276,19 +304,32 @@ class BudgetAppGUI:
 
     def _build_stat_card(self, parent: ttk.Frame, col: int, label: str, value_var: tk.StringVar) -> None:
         value_color = Colors.TEXT
+        card_bg = Colors.PANEL
+        border_color = Colors.GRID
         if label == "Income":
             value_color = Colors.INCOME
+            card_bg = "#edf8f2"
+            border_color = "#b9e2c8"
         elif label == "Expenses":
             value_color = Colors.EXPENSE
+            card_bg = "#fff0ee"
+            border_color = "#f0c5bf"
         elif label == "Budget Left":
             value_color = Colors.BEACON
+            card_bg = "#fff8ea"
+            border_color = "#f0dcac"
+        elif label == "Budget Goal":
+            card_bg = "#eef4ff"
+            border_color = "#c9d7f0"
+        elif label == "Balance":
+            card_bg = "#f1f5fa"
 
-        card = tk.Frame(parent, bg=Colors.PANEL, bd=0, highlightthickness=1, highlightbackground=Colors.GRID)
+        card = tk.Frame(parent, bg=card_bg, bd=0, highlightthickness=1, highlightbackground=border_color)
         card.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 8, 0), pady=0)
-        tk.Label(card, text=label, bg=Colors.PANEL, fg=Colors.MUTED, font=("Segoe UI", 9, "bold")).pack(
+        tk.Label(card, text=label, bg=card_bg, fg=Colors.MUTED, font=("Segoe UI", 9, "bold")).pack(
             anchor="w", padx=10, pady=(8, 2)
         )
-        tk.Label(card, textvariable=value_var, bg=Colors.PANEL, fg=value_color, font=("Segoe UI", 16, "bold")).pack(
+        tk.Label(card, textvariable=value_var, bg=card_bg, fg=value_color, font=("Segoe UI", 16, "bold")).pack(
             anchor="w", padx=10, pady=(0, 8)
         )
 
