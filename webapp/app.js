@@ -120,8 +120,10 @@ function load() {
   try {
     const parsed = JSON.parse(raw);
     const rawEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
+    const parsedBudget = Number(parsed.budget);
+    const budget = Number.isFinite(parsedBudget) && parsedBudget >= 0 ? parsedBudget : 0;
     return {
-      budget: Number(parsed.budget || 0),
+      budget,
       entries: rawEntries
         .map((entry) => sanitizeEntry(entry))
         .filter((entry) => entry !== null)
