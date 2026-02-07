@@ -1,44 +1,59 @@
 ﻿# BudgetBeacon
 
-A budget tracker with:
-- Desktop app (`tkinter`)
-- Responsive web app (HTML/CSS/JS)
+BudgetBeacon is a personal budget tracker with two interfaces:
+- Desktop app (`tkinter`) for local use
+- Responsive web app (HTML/CSS/JS) for phone + desktop browser use
 
-## Features
-- Add income and expense transactions
-- Sort transactions by clicking table headers (desktop app)
-- Filter by type and category
-- Search transactions by category or note
-- Delete selected transaction
-- Set monthly budget
-- Live summary cards (income, expense, balance, budget, budget left)
-- Built-in charts:
-  - Monthly expense trend (last 6 months)
-  - Top expense categories
-- CSV export and import (desktop app)
-- Local JSON data storage (`budget_data.json`) for desktop app
-- Browser local storage for web app
+## Screenshots
+Add screenshots to `docs/screenshots/` and update these links:
+- `docs/screenshots/dashboard.png` (main dashboard)
+- `docs/screenshots/edit-entry.png` (edit dialog)
+- `docs/screenshots/onboarding.png` (first-run onboarding)
 
-## Requirements
-- Python 3.10+
-
-## Run Desktop App
-```powershell
-python budget_app.py
+Example markdown once added:
+```md
+![Dashboard](docs/screenshots/dashboard.png)
 ```
 
-## Run Web App
+## Quick Start
+### Web App (recommended)
 ```powershell
 cd webapp
 python -m http.server 8000
 ```
+Open: `http://localhost:8000`
 
-Then open:
-`http://localhost:8000`
+### Desktop App
+```powershell
+python budget_app.py
+```
 
-## Data Files
-- `budget_data.json`: desktop app database
-- optional exported CSV files from the desktop app Export button
+## Core Features
+- Add income and expense entries
+- Edit and delete existing entries
+- Filter/search entries by type/category/text
+- Monthly budget goal + live summary cards
+- Built-in charts (monthly expense trend, top expense categories)
+- Backup/restore (web JSON export/import)
+- Onboarding flow and sample-data toggle (web)
+- CSV import/export (desktop)
+
+## Data Storage
+- Desktop app: `budget_data.json`
+- Web app: browser `localStorage`
+- Web backup file: exported `.json` snapshots
+
+## Known Limits
+- Web app data is per-browser unless manually backed up/imported.
+- No user accounts/cloud sync yet.
+- Desktop and web data stores are separate.
+- Desktop UI is designed for desktop OS windows (not mobile-native).
+
+## Quality Checks
+Use: `webapp/QA_CHECKLIST.md`
+
+## Changelog
+See: `CHANGELOG.md`
 
 ## Notes
 - `.gitignore` excludes local environment files and `budget_data.json`.
