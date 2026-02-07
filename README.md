@@ -23,6 +23,17 @@ python -m http.server 8000
 ```
 Open: `http://localhost:8000`
 
+## Deploy (GitHub Pages)
+This repo includes `.github/workflows/deploy-pages.yml` to publish `webapp/`.
+
+1. Push to `main` (workflow runs automatically on web app changes).
+2. In GitHub, open `Settings` -> `Pages`.
+3. Under `Build and deployment`, choose `Source: GitHub Actions`.
+4. Wait for the `Deploy BudgetBeacon Web` workflow to complete.
+
+Expected live URL:
+`https://kalo11.github.io/BudgetBeacon/`
+
 ### Desktop App
 ```powershell
 python budget_app.py
