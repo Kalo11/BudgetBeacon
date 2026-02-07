@@ -2,8 +2,10 @@
 import json
 from collections import defaultdict
 from datetime import datetime
+from math import isfinite
 from pathlib import Path
 import tkinter as tk
+from typing import Optional
 from tkinter import filedialog, messagebox, ttk
 
 DATA_FILE = Path("budget_data.json")
@@ -11,6 +13,8 @@ DATA_FILE = Path("budget_data.json")
 
 def default_data() -> dict:
     return {"monthly_budget": 0.0, "transactions": []}
+
+
 EXPENSE_CATEGORIES = [
     "Groceries",
     "Rent",
@@ -77,10 +81,23 @@ def load_data() -> dict:
 
     if not isinstance(data, dict):
         return default_data()
-    if "monthly_budget" not in data or not isinstance(data.get("monthly_budget"), (int, float)):
-        data["monthly_budget"] = 0.0
-    if "transactions" not in data or not isinstance(data.get("transactions"), list):
+
+    data["monthly_budget"] = _amount_or_zero(data.get("monthly_budget", 0.0))
+    raw_transactions = data.get("transactions")
+    if not isinstance(raw_transactions, list):
         data["transactions"] = []
+        return data
+
+    transactions = []
+    for index, tx in enumerate(raw_transactions, start=1):
+        cleaned = _sanitize_transaction(tx, fallback_id=index)
+        if cleaned is not None:
+            transactions.append(cleaned)
+
+    for index, tx in enumerate(transactions, start=1):
+        tx["id"] = index
+
+    data["transactions"] = transactions
     return data
 
 
@@ -89,17 +106,25 @@ def save_data(data: dict) -> None:
         json.dump(data, file, indent=2)
 
 
-def parse_amount(value: str) -> float:
+def parse_amount(value: object) -> float:
     amount = float(value)
-    if amount < 0:
-        raise ValueError("Amount must be non-negative.")
+    if not isfinite(amount) or amount < 0:
+        raise ValueError("Amount must be a finite non-negative number.")
     return amount
 
 
 def calculate_summary(data: dict) -> dict:
-    income = sum(tx["amount"] for tx in data["transactions"] if tx["type"] == "income")
-    expense = sum(tx["amount"] for tx in data["transactions"] if tx["type"] == "expense")
-    budget = data.get("monthly_budget", 0.0)
+    income = 0.0
+    expense = 0.0
+    for tx in data.get("transactions", []):
+        tx_type = str(tx.get("type", "")).strip().lower()
+        amount = _amount_or_zero(tx.get("amount"))
+        if tx_type == "income":
+            income += amount
+        elif tx_type == "expense":
+            expense += amount
+
+    budget = _amount_or_zero(data.get("monthly_budget", 0.0))
     return {
         "income": income,
         "expense": expense,
@@ -109,13 +134,62 @@ def calculate_summary(data: dict) -> dict:
     }
 
 
-def safe_month_key(created_at: str) -> str:
+def safe_month_key(created_at: object) -> str:
     if not created_at:
         return "unknown"
+    text = str(created_at)
     try:
-        return datetime.fromisoformat(created_at).strftime("%Y-%m")
-    except ValueError:
-        return created_at[:7] if len(created_at) >= 7 else "unknown"
+        return datetime.fromisoformat(text).strftime("%Y-%m")
+    except (ValueError, TypeError):
+        return text[:7] if len(text) >= 7 else "unknown"
+
+
+def _amount_or_zero(value: object) -> float:
+    try:
+        return parse_amount(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _safe_int(value: object, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _sanitize_transaction(tx: object, fallback_id: int) -> Optional[dict]:
+    if not isinstance(tx, dict):
+        return None
+
+    tx_type = str(tx.get("type", "")).strip().lower()
+    if tx_type not in {"income", "expense"}:
+        return None
+
+    category = str(tx.get("category", "")).strip()
+    if not category:
+        return None
+
+    amount = _amount_or_zero(tx.get("amount"))
+    note = str(tx.get("note", "")).strip()
+
+    created_raw = tx.get("created_at")
+    created_at = str(created_raw).strip() if created_raw is not None else ""
+    if not created_at:
+        created_at = datetime.now().isoformat(timespec="seconds")
+
+    tx_id = _safe_int(tx.get("id"), fallback_id)
+    if tx_id < 1:
+        tx_id = fallback_id
+
+    return {
+        "id": tx_id,
+        "type": tx_type,
+        "category": category,
+        "amount": amount,
+        "note": note,
+        "created_at": created_at,
+    }
 
 
 def format_currency(amount: float) -> str:
@@ -503,9 +577,9 @@ class BudgetAppGUI:
 
         def key_fn(tx: dict):
             if key == "id":
-                return tx.get("id", 0)
+                return _safe_int(tx.get("id"), 0)
             if key == "amount":
-                return float(tx.get("amount", 0.0))
+                return _amount_or_zero(tx.get("amount"))
             lookup = "created_at" if key == "date" else key
             return str(tx.get(lookup, "")).lower()
 
@@ -531,11 +605,11 @@ class BudgetAppGUI:
                 "",
                 "end",
                 values=(
-                    tx["id"],
+                    tx.get("id", ""),
                     tx.get("created_at", ""),
                     tx.get("type", ""),
                     tx.get("category", ""),
-                    format_currency(float(tx.get("amount", 0.0))),
+                    format_currency(_amount_or_zero(tx.get("amount"))),
                     tx.get("note", ""),
                 ),
             )
@@ -631,7 +705,9 @@ class BudgetAppGUI:
         for row_id in selected:
             row_values = self.tree.item(row_id, "values")
             if row_values:
-                ids_to_delete.add(int(row_values[0]))
+                tx_id = _safe_int(row_values[0], 0)
+                if tx_id > 0:
+                    ids_to_delete.add(tx_id)
 
         if not ids_to_delete:
             messagebox.showwarning("No Selection", "Select a valid entry to delete.")
@@ -644,7 +720,9 @@ class BudgetAppGUI:
         ):
             return
 
-        self.data["transactions"] = [tx for tx in self.data["transactions"] if tx["id"] not in ids_to_delete]
+        self.data["transactions"] = [
+            tx for tx in self.data["transactions"] if _safe_int(tx.get("id"), 0) not in ids_to_delete
+        ]
         self._reindex_transactions()
         save_data(self.data)
         self.refresh_ui(f"Deleted {len(ids_to_delete)} {entry_word}.")
