@@ -101,10 +101,11 @@ function wire() {
     renderTable();
   });
 
-  el.helpBtn.addEventListener("click", () => el.helpDialog.showModal());
+  el.helpBtn.addEventListener("click", () => openDialog(el.helpDialog));
   el.editTypeInput.addEventListener("change", refreshEditCategoryInput);
   el.saveEditBtn.addEventListener("click", saveEditedEntry);
   el.cancelEditBtn.addEventListener("click", closeEditDialog);
+  el.rows.addEventListener("click", handleTableActionClick);
 
   el.onboardBackBtn.addEventListener("click", goOnboardingBack);
   el.onboardNextBtn.addEventListener("click", goOnboardingNext);
@@ -186,7 +187,7 @@ function addEntry() {
   if (!Number.isFinite(amount) || amount < 0) return setStatus("Enter a valid amount.");
 
   state.entries.unshift({
-    id: crypto.randomUUID(),
+    id: makeId(),
     type,
     category,
     amount,
@@ -233,13 +234,13 @@ function toggleSampleData() {
   const now = new Date();
   const daysAgo = (days) => new Date(now.getTime() - days * 86400000).toISOString();
   const sampleEntries = [
-    { id: crypto.randomUUID(), type: "income", category: "Salary", amount: 4200, note: "[sample]", createdAt: daysAgo(25) },
-    { id: crypto.randomUUID(), type: "expense", category: "Rent", amount: 1450, note: "[sample]", createdAt: daysAgo(24) },
-    { id: crypto.randomUUID(), type: "expense", category: "Groceries", amount: 120, note: "[sample]", createdAt: daysAgo(20) },
-    { id: crypto.randomUUID(), type: "expense", category: "Transportation", amount: 65, note: "[sample]", createdAt: daysAgo(14) },
-    { id: crypto.randomUUID(), type: "expense", category: "Dining", amount: 54, note: "[sample]", createdAt: daysAgo(10) },
-    { id: crypto.randomUUID(), type: "income", category: "Freelance", amount: 380, note: "[sample]", createdAt: daysAgo(8) },
-    { id: crypto.randomUUID(), type: "expense", category: "Utilities", amount: 160, note: "[sample]", createdAt: daysAgo(5) }
+    { id: makeId(), type: "income", category: "Salary", amount: 4200, note: "[sample]", createdAt: daysAgo(25) },
+    { id: makeId(), type: "expense", category: "Rent", amount: 1450, note: "[sample]", createdAt: daysAgo(24) },
+    { id: makeId(), type: "expense", category: "Groceries", amount: 120, note: "[sample]", createdAt: daysAgo(20) },
+    { id: makeId(), type: "expense", category: "Transportation", amount: 65, note: "[sample]", createdAt: daysAgo(14) },
+    { id: makeId(), type: "expense", category: "Dining", amount: 54, note: "[sample]", createdAt: daysAgo(10) },
+    { id: makeId(), type: "income", category: "Freelance", amount: 380, note: "[sample]", createdAt: daysAgo(8) },
+    { id: makeId(), type: "expense", category: "Utilities", amount: 160, note: "[sample]", createdAt: daysAgo(5) }
   ];
 
   if (state.budget === 0) {
@@ -302,7 +303,7 @@ function renderTable() {
 
   rows.forEach((entry) => {
     const tr = document.createElement("tr");
-    appendCell(tr, new Date(entry.createdAt).toLocaleString());
+    appendCell(tr, formatDateTime(entry.createdAt));
     appendCell(tr, entry.type);
     appendCell(tr, entry.category);
     appendCell(tr, formatMoney(entry.amount));
@@ -310,16 +311,16 @@ function renderTable() {
 
     const actionCell = document.createElement("td");
     const editBtn = document.createElement("button");
-    editBtn.className = "btn";
+    editBtn.className = "btn action-btn";
     editBtn.textContent = "Edit";
-    editBtn.style.width = "auto";
-    editBtn.style.marginRight = "6px";
-    editBtn.addEventListener("click", () => openEditDialog(entry.id));
+    editBtn.dataset.action = "edit";
+    editBtn.dataset.id = entry.id;
 
     const deleteBtn = document.createElement("button");
-    deleteBtn.className = "delete-btn";
+    deleteBtn.className = "delete-btn action-btn";
     deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", () => deleteEntry(entry.id));
+    deleteBtn.dataset.action = "delete";
+    deleteBtn.dataset.id = entry.id;
     actionCell.appendChild(editBtn);
     actionCell.appendChild(deleteBtn);
     tr.appendChild(actionCell);
@@ -400,7 +401,7 @@ function sanitizeEntry(entry) {
   const amount = Number(entry.amount);
   const note = String(entry.note || "");
   const createdAt = String(entry.createdAt || new Date().toISOString());
-  const id = String(entry.id || crypto.randomUUID());
+  const id = String(entry.id || makeId());
 
   if (!category || !Number.isFinite(amount) || amount < 0) return null;
 
@@ -423,7 +424,7 @@ function openEditDialog(id) {
   refreshEditCategoryInput(entry.category);
   el.editAmountInput.value = String(entry.amount);
   el.editNoteInput.value = entry.note || "";
-  el.editDialog.showModal();
+  openDialog(el.editDialog);
 }
 
 function refreshEditCategoryInput(selected = "") {
@@ -472,9 +473,7 @@ function saveEditedEntry(event) {
 
 function closeEditDialog() {
   editingEntryId = null;
-  if (el.editDialog.open) {
-    el.editDialog.close();
-  }
+  closeDialog(el.editDialog);
 }
 
 function drawCharts() {
@@ -598,12 +597,61 @@ function appendCell(row, value) {
   row.appendChild(td);
 }
 
+function handleTableActionClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const action = target.dataset.action;
+  const id = target.dataset.id;
+  if (!action || !id) return;
+
+  if (action === "edit") {
+    openEditDialog(id);
+    return;
+  }
+  if (action === "delete") {
+    deleteEntry(id);
+  }
+}
+
+function makeId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return `id_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value || "");
+  }
+  return date.toLocaleString();
+}
+
+function openDialog(dialog) {
+  if (!dialog) return;
+  if (typeof dialog.showModal === "function") {
+    dialog.showModal();
+    return;
+  }
+  dialog.setAttribute("open", "true");
+}
+
+function closeDialog(dialog) {
+  if (!dialog) return;
+  if (typeof dialog.close === "function" && dialog.open) {
+    dialog.close();
+    return;
+  }
+  dialog.removeAttribute("open");
+}
+
 function maybeStartOnboarding() {
   const seen = localStorage.getItem(ONBOARDING_KEY) === "1";
   if (seen) return;
   onboardingStep = 0;
   renderOnboardingStep();
-  el.onboardingDialog.showModal();
+  openDialog(el.onboardingDialog);
 }
 
 function renderOnboardingStep() {
@@ -631,7 +679,5 @@ function goOnboardingNext() {
 
 function completeOnboarding() {
   localStorage.setItem(ONBOARDING_KEY, "1");
-  if (el.onboardingDialog.open) {
-    el.onboardingDialog.close();
-  }
+  closeDialog(el.onboardingDialog);
 }

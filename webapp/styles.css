@@ -308,6 +308,11 @@ tbody tr:hover {
   background: #a83428;
 }
 
+.action-btn {
+  width: auto;
+  margin-right: 6px;
+}
+
 .empty {
   margin: 10px;
   color: var(--muted);
@@ -374,5 +379,10 @@ dialog::backdrop {
 
   .topbar {
     flex-direction: column;
+  }
+
+  .action-btn {
+    width: 100%;
+    margin: 0 0 6px;
   }
 }
