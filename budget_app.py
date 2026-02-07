@@ -396,15 +396,30 @@ class BudgetAppGUI:
 
     def show_help(self) -> None:
         messagebox.showinfo(
-            "Quick Guide",
-            "How to use:\n\n"
-            "1) Pick Income or Expense\n"
-            "2) Choose a Category\n"
-            "3) Enter Amount and click Save Entry\n\n"
-            "Tips:\n"
-            "- Click table headers to sort\n"
-            "- Use search and filters to find old entries\n"
-            "- Export to CSV to back up your data",
+            "How To Use (Simple Steps)",
+            "Take your time. Follow these steps:\n\n"
+            "1) Set your monthly budget first.\n"
+            "   On the left side, type your budget in 'Monthly Budget Goal'\n"
+            "   then click 'Save Budget Goal'.\n\n"
+            "2) Add money you receive (income).\n"
+            "   Choose 'income', pick a category, type the amount,\n"
+            "   then click 'Save Entry'.\n\n"
+            "3) Add money you spend (expense).\n"
+            "   Choose 'expense', pick a category, type the amount,\n"
+            "   then click 'Save Entry'.\n\n"
+            "4) Check your totals at the top.\n"
+            "   - Income: money in\n"
+            "   - Expenses: money out\n"
+            "   - Budget Left: what you still have this month\n\n"
+            "5) To remove a mistake:\n"
+            "   Click the entry once in the table, then click\n"
+            "   'Delete Selected Entry'.\n\n"
+            "6) To find old entries:\n"
+            "   Use the search box or the filter boxes above the table.\n\n"
+            "7) To save a backup copy:\n"
+            "   Click 'Export to CSV'.\n\n"
+            "If something looks wrong, do not worry.\n"
+            "You can always add, edit by deleting/re-adding, or import/export again.",
         )
 
     def visible_transactions(self) -> list[dict]:
