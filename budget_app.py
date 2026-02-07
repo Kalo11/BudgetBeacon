@@ -218,8 +218,16 @@ class BudgetAppGUI:
         )
 
         ttk.Label(form, text="Category").grid(row=2, column=0, sticky="w", pady=(0, 4))
-        self.category_entry = ttk.Combobox(form, textvariable=self.category_var, values=DEFAULT_CATEGORIES, width=24)
+        self.category_entry = ttk.Combobox(
+            form,
+            textvariable=self.category_var,
+            values=typical_categories_for("expense"),
+            state="readonly",
+            width=24,
+        )
         self.category_entry.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        if self.category_entry["values"]:
+            self.category_var.set(self.category_entry["values"][0])
 
         ttk.Label(form, text="Amount (example: 24.99)").grid(row=4, column=0, sticky="w", pady=(0, 4))
         amount_entry = ttk.Entry(form, textvariable=self.amount_var, width=24)
@@ -309,8 +317,9 @@ class BudgetAppGUI:
         ttk.Button(filters, text="Reset Filters", command=self.reset_filters).grid(row=0, column=6, padx=(6, 0), sticky="w")
 
         columns = ("id", "date", "type", "category", "amount", "note")
-        self.tree = ttk.Treeview(table_wrap, columns=columns, show="headings")
+        self.tree = ttk.Treeview(table_wrap, columns=columns, show="headings", selectmode="extended")
         self.tree.grid(row=1, column=0, sticky="nsew")
+        self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.tree.bind("<Delete>", lambda _e: self.delete_selected())
 
         headings = {
@@ -369,6 +378,13 @@ class BudgetAppGUI:
         if self._filter_after_id is not None:
             self.root.after_cancel(self._filter_after_id)
         self._filter_after_id = self.root.after(200, lambda: self.refresh_ui("Filters updated."))
+
+    def _on_tree_select(self, _event=None) -> None:
+        count = len(self.tree.selection())
+        if count == 0:
+            return
+        entry_word = "entry" if count == 1 else "entries"
+        self.status_var.set(f"{count} {entry_word} selected.")
 
     def _show_welcome_if_needed(self) -> None:
         if self.data.get("transactions"):
@@ -476,6 +492,8 @@ class BudgetAppGUI:
         typed_categories = sorted({tx.get("category", "").strip() for tx in self.data.get("transactions", []) if tx.get("type") == selected_type and tx.get("category")})
         category_choices = sorted(set(typical_categories_for(selected_type) + typed_categories + categories))
         self.category_entry["values"] = category_choices
+        if category_choices and self.category_var.get() not in category_choices:
+            self.category_var.set(category_choices[0])
 
         filter_values = ["all", *categories]
         self.category_filter_combo["values"] = filter_values
@@ -524,6 +542,10 @@ class BudgetAppGUI:
 
     def delete_selected(self) -> None:
         selected = self.tree.selection()
+        if not selected:
+            focused = self.tree.focus()
+            if focused:
+                selected = (focused,)
         if not selected:
             messagebox.showwarning("No Selection", "Select an entry first, then click Delete.")
             return
