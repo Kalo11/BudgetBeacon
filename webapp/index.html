@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -6,7 +6,7 @@
   <title>BudgetBeacon Web</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
   <div class="scene-glow glow-a"></div>
@@ -24,6 +24,10 @@
         <button id="helpBtn" class="btn ghost">How To Use</button>
       </div>
     </header>
+
+    <p id="demoBanner" class="demo-banner" hidden>
+      Demo mode is active. Sample entries are loaded and marked for exploration.
+    </p>
 
     <section class="stats" id="stats">
       <article class="card metric-card">
@@ -53,6 +57,7 @@
         <h3>Budget Usage</h3>
         <p id="budgetProgressLabel">Set a budget goal to track your monthly pace.</p>
       </div>
+      <p id="budgetScopeLabel" class="period-label">This month (current cycle)</p>
       <div class="progress-track" aria-hidden="true">
         <div id="budgetProgressFill" class="progress-fill"></div>
       </div>
@@ -60,7 +65,7 @@
 
     <section class="layout">
       <aside class="panel form-panel">
-        <section class="form-section">
+        <section id="addEntrySection" class="form-section">
           <h3>Add Entry</h3>
           <label>Money Type
             <select id="typeInput">
@@ -72,10 +77,12 @@
           <label>Category
             <select id="categoryInput"></select>
           </label>
+          <button id="manageCategoriesBtn" class="btn subtle" type="button">Manage Categories</button>
 
           <label>Amount
             <input id="amountInput" type="number" inputmode="decimal" min="0" step="0.01" placeholder="24.99" />
           </label>
+          <p id="amountInlineError" class="field-hint" aria-live="polite"></p>
 
           <label>Note (optional)
             <input id="noteInput" type="text" placeholder="Example: weekly groceries" />
@@ -108,6 +115,13 @@
           <label>Budget Goal
             <input id="budgetInput" type="number" inputmode="decimal" min="0" step="0.01" placeholder="2000" />
           </label>
+          <p id="budgetInlineError" class="field-hint" aria-live="polite"></p>
+
+          <label>Start Month On Day
+            <input id="monthStartInput" type="number" min="1" max="28" step="1" value="1" />
+          </label>
+          <p class="field-hint">Use `1` for calendar months or another day for paycheck-style cycles.</p>
+
           <button id="saveBudgetBtn" class="btn">Save Budget Goal</button>
 
           <div class="row">
@@ -116,6 +130,9 @@
           </div>
 
           <button id="syncNowBtn" class="btn">Sync Now (Cloud)</button>
+          <p id="storageModeLabel" class="field-hint"></p>
+          <p id="syncModeLabel" class="field-hint"></p>
+
           <button id="sampleDataBtn" class="btn">Load Sample Data</button>
           <input id="importFileInput" type="file" accept=".json,application/json" hidden />
         </section>
@@ -132,6 +149,14 @@
           <p id="entryCount" class="panel-meta">0 shown</p>
         </div>
 
+        <div class="scope-row">
+          <div class="scope-toggle">
+            <button id="scopeMonthBtn" type="button" class="btn scope-btn is-active">This Month</button>
+            <button id="scopeAllBtn" type="button" class="btn scope-btn">All Time</button>
+          </div>
+          <p id="dataScopeLabel" class="panel-meta">This month</p>
+        </div>
+
         <div class="filters">
           <label>Type
             <select id="filterType">
@@ -145,10 +170,23 @@
               <option value="all">All</option>
             </select>
           </label>
+          <label>Sort
+            <select id="sortInput">
+              <option value="date_desc">Date (Newest)</option>
+              <option value="date_asc">Date (Oldest)</option>
+              <option value="amount_desc">Amount (High to Low)</option>
+              <option value="amount_asc">Amount (Low to High)</option>
+            </select>
+          </label>
           <label>Search
             <input id="searchInput" type="text" placeholder="Find by note/category" />
           </label>
           <button id="resetFiltersBtn" class="btn">Reset</button>
+        </div>
+
+        <div class="top-filter-row">
+          <p class="panel-meta">Top categories</p>
+          <div id="topCategoryFilters" class="top-category-filters"></div>
         </div>
 
         <div class="table-wrap">
@@ -186,10 +224,10 @@
 
   <dialog id="helpDialog">
     <h3>How To Use</h3>
-    <p>1. Set your monthly budget goal.</p>
-    <p>2. Add each income and expense when it happens.</p>
-    <p>3. Use filters/search to find older entries.</p>
-    <p>4. Use Export Backup and Import Backup to save/restore your data.</p>
+    <p>1. Set your monthly budget goal and choose your month start day.</p>
+    <p>2. Add each income/expense entry as it happens (press `Enter` to save quickly).</p>
+    <p>3. Use `This Month / All Time`, sort, and filters to analyze entries.</p>
+    <p>4. Data is saved in this browser unless cloud mode is explicitly enabled.</p>
     <form method="dialog">
       <button class="btn primary">Close</button>
     </form>
@@ -209,12 +247,37 @@
     <label>Amount
       <input id="editAmountInput" type="number" inputmode="decimal" min="0" step="0.01" />
     </label>
+    <p id="editAmountInlineError" class="field-hint" aria-live="polite"></p>
     <label>Note
       <input id="editNoteInput" type="text" />
     </label>
     <div class="row">
       <button id="saveEditBtn" class="btn primary">Save Changes</button>
       <button id="cancelEditBtn" class="btn" type="button">Cancel</button>
+    </div>
+  </dialog>
+
+  <dialog id="categoryDialog">
+    <h3>Manage Categories</h3>
+    <p class="dialog-sub">Add, rename, recolor, or delete categories.</p>
+    <label>Money Type
+      <select id="categoryManagerType">
+        <option value="expense">Expense</option>
+        <option value="income">Income</option>
+      </select>
+    </label>
+    <ul id="categoryManagerList" class="category-manager-list"></ul>
+    <div class="category-add-grid">
+      <label>New Category
+        <input id="newCategoryNameInput" type="text" placeholder="Example: Subscriptions" />
+      </label>
+      <label>Color
+        <input id="newCategoryColorInput" type="color" value="#2f7db5" />
+      </label>
+    </div>
+    <div class="row">
+      <button id="addCategoryBtn" class="btn primary" type="button">Add Category</button>
+      <button id="closeCategoryDialogBtn" class="btn" type="button">Done</button>
     </div>
   </dialog>
 
@@ -228,6 +291,6 @@
     <button id="onboardSkipBtn" class="btn" type="button">Skip</button>
   </dialog>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

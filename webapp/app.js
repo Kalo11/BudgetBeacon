@@ -16,6 +16,23 @@ const INCOME_CATEGORIES = [
   "Salary", "Freelance", "Business", "Interest", "Dividends", "Rental Income", "Refund", "Gift", "Other Income"
 ];
 
+const EXPENSE_CATEGORY_COLORS = [
+  "#246aaf", "#ad4e3b", "#2e8f6b", "#7557a8", "#b07723", "#1f7e91", "#5b5d90", "#97754e"
+];
+
+const INCOME_CATEGORY_COLORS = [
+  "#2a8f6d", "#4f7fc2", "#7b64bf", "#3f9c96", "#a67d2a", "#6a8d3b"
+];
+
+const DEFAULT_SETTINGS = {
+  defaultType: "expense",
+  dataScope: "month",
+  monthStartDay: 1,
+  sortOrder: "date_desc"
+};
+
+const SORT_OPTIONS = new Set(["date_desc", "date_asc", "amount_desc", "amount_asc"]);
+
 const onboardingSteps = [
   {
     title: "Welcome to BudgetBeacon",
@@ -37,9 +54,12 @@ let editingEntryId = null;
 let onboardingStep = 0;
 
 const el = {
+  addEntrySection: document.getElementById("addEntrySection"),
   typeInput: document.getElementById("typeInput"),
   categoryInput: document.getElementById("categoryInput"),
+  manageCategoriesBtn: document.getElementById("manageCategoriesBtn"),
   amountInput: document.getElementById("amountInput"),
+  amountInlineError: document.getElementById("amountInlineError"),
   noteInput: document.getElementById("noteInput"),
   recurringToggleInput: document.getElementById("recurringToggleInput"),
   recurringFrequencyInput: document.getElementById("recurringFrequencyInput"),
@@ -48,16 +68,26 @@ const el = {
   saveBtn: document.getElementById("saveBtn"),
   clearBtn: document.getElementById("clearBtn"),
   budgetInput: document.getElementById("budgetInput"),
+  budgetInlineError: document.getElementById("budgetInlineError"),
+  monthStartInput: document.getElementById("monthStartInput"),
   saveBudgetBtn: document.getElementById("saveBudgetBtn"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataBtn: document.getElementById("importDataBtn"),
   syncNowBtn: document.getElementById("syncNowBtn"),
+  storageModeLabel: document.getElementById("storageModeLabel"),
+  syncModeLabel: document.getElementById("syncModeLabel"),
   sampleDataBtn: document.getElementById("sampleDataBtn"),
+  demoBanner: document.getElementById("demoBanner"),
   importFileInput: document.getElementById("importFileInput"),
+  scopeMonthBtn: document.getElementById("scopeMonthBtn"),
+  scopeAllBtn: document.getElementById("scopeAllBtn"),
+  dataScopeLabel: document.getElementById("dataScopeLabel"),
   filterType: document.getElementById("filterType"),
   filterCategory: document.getElementById("filterCategory"),
+  sortInput: document.getElementById("sortInput"),
   searchInput: document.getElementById("searchInput"),
   resetFiltersBtn: document.getElementById("resetFiltersBtn"),
+  topCategoryFilters: document.getElementById("topCategoryFilters"),
   rows: document.getElementById("entryRows"),
   emptyState: document.getElementById("emptyState"),
   incomeTotal: document.getElementById("incomeTotal"),
@@ -66,6 +96,7 @@ const el = {
   budgetGoal: document.getElementById("budgetGoal"),
   budgetLeft: document.getElementById("budgetLeft"),
   budgetProgressLabel: document.getElementById("budgetProgressLabel"),
+  budgetScopeLabel: document.getElementById("budgetScopeLabel"),
   budgetProgressFill: document.getElementById("budgetProgressFill"),
   status: document.getElementById("status"),
   entryCount: document.getElementById("entryCount"),
@@ -75,9 +106,17 @@ const el = {
   editTypeInput: document.getElementById("editTypeInput"),
   editCategoryInput: document.getElementById("editCategoryInput"),
   editAmountInput: document.getElementById("editAmountInput"),
+  editAmountInlineError: document.getElementById("editAmountInlineError"),
   editNoteInput: document.getElementById("editNoteInput"),
   saveEditBtn: document.getElementById("saveEditBtn"),
   cancelEditBtn: document.getElementById("cancelEditBtn"),
+  categoryDialog: document.getElementById("categoryDialog"),
+  categoryManagerType: document.getElementById("categoryManagerType"),
+  categoryManagerList: document.getElementById("categoryManagerList"),
+  newCategoryNameInput: document.getElementById("newCategoryNameInput"),
+  newCategoryColorInput: document.getElementById("newCategoryColorInput"),
+  addCategoryBtn: document.getElementById("addCategoryBtn"),
+  closeCategoryDialogBtn: document.getElementById("closeCategoryDialogBtn"),
   onboardingDialog: document.getElementById("onboardingDialog"),
   onboardTitle: document.getElementById("onboardTitle"),
   onboardBody: document.getElementById("onboardBody"),
@@ -92,6 +131,7 @@ wire();
 const addedRecurringEntries = applyRecurringEntries();
 render();
 maybeStartOnboarding();
+setTimeout(() => focusAmountInput(), 0);
 if (addedRecurringEntries > 0) {
   setStatus(`Added ${addedRecurringEntries} recurring entr${addedRecurringEntries === 1 ? "y" : "ies"}.`);
 } else if (storageAdapter.mode !== "local") {
@@ -99,15 +139,37 @@ if (addedRecurringEntries > 0) {
 }
 
 function wire() {
-  el.typeInput.addEventListener("change", refreshCategoryInput);
+  el.typeInput.addEventListener("change", () => {
+    state.settings.defaultType = el.typeInput.value;
+    save();
+    refreshCategoryInput();
+    clearFieldError(el.amountInlineError);
+    focusAmountInput();
+  });
+  el.manageCategoriesBtn.addEventListener("click", openCategoryDialog);
   el.saveBtn.addEventListener("click", addEntry);
   el.clearBtn.addEventListener("click", clearForm);
+  el.addEntrySection.addEventListener("keydown", handleAddEntryKeydown);
+  el.amountInput.addEventListener("input", () => validateAmountInput(false));
+  el.amountInput.addEventListener("blur", () => validateAmountInput(true));
+
+  el.budgetInput.addEventListener("input", () => validateBudgetInput(false));
+  el.budgetInput.addEventListener("blur", () => validateBudgetInput(true));
+  el.monthStartInput.addEventListener("change", saveMonthStartDay);
   el.saveBudgetBtn.addEventListener("click", saveBudget);
   el.exportDataBtn.addEventListener("click", exportBackup);
   el.importDataBtn.addEventListener("click", () => el.importFileInput.click());
   el.syncNowBtn.addEventListener("click", syncNow);
   el.sampleDataBtn.addEventListener("click", toggleSampleData);
   el.importFileInput.addEventListener("change", importBackupFromFile);
+  el.scopeMonthBtn.addEventListener("click", () => setDataScope("month"));
+  el.scopeAllBtn.addEventListener("click", () => setDataScope("all"));
+  el.sortInput.addEventListener("change", () => {
+    state.settings.sortOrder = SORT_OPTIONS.has(el.sortInput.value) ? el.sortInput.value : DEFAULT_SETTINGS.sortOrder;
+    save();
+    renderTable();
+  });
+  el.topCategoryFilters.addEventListener("click", handleTopCategoryFilterClick);
 
   [el.filterType, el.filterCategory, el.searchInput].forEach((node) => {
     node.addEventListener("input", renderTable);
@@ -117,12 +179,23 @@ function wire() {
   el.resetFiltersBtn.addEventListener("click", () => {
     el.filterType.value = "all";
     el.filterCategory.value = "all";
+    el.sortInput.value = DEFAULT_SETTINGS.sortOrder;
+    state.settings.sortOrder = DEFAULT_SETTINGS.sortOrder;
     el.searchInput.value = "";
+    save();
     renderTable();
   });
 
   el.helpBtn.addEventListener("click", () => openDialog(el.helpDialog));
+  el.categoryManagerType.addEventListener("change", renderCategoryManager);
+  el.addCategoryBtn.addEventListener("click", addManagedCategory);
+  el.closeCategoryDialogBtn.addEventListener("click", closeCategoryDialog);
+  el.categoryManagerList.addEventListener("change", handleCategoryManagerListChange);
+  el.categoryManagerList.addEventListener("click", handleCategoryManagerListClick);
+
   el.editTypeInput.addEventListener("change", refreshEditCategoryInput);
+  el.editAmountInput.addEventListener("input", () => validateEditAmountInput(false));
+  el.editAmountInput.addEventListener("blur", () => validateEditAmountInput(true));
   el.saveEditBtn.addEventListener("click", saveEditedEntry);
   el.cancelEditBtn.addEventListener("click", closeEditDialog);
   el.rows.addEventListener("click", handleTableActionClick);
@@ -137,25 +210,110 @@ function wire() {
 
 function load() {
   const raw = storageAdapter.readStateRaw();
-  if (!raw) return { budget: 0, entries: [], recurringRules: [] };
+  if (!raw) return createDefaultState();
   try {
     const parsed = JSON.parse(raw);
     const rawEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
     const rawRules = Array.isArray(parsed.recurringRules) ? parsed.recurringRules : [];
     const parsedBudget = Number(parsed.budget);
     const budget = Number.isFinite(parsedBudget) && parsedBudget >= 0 ? parsedBudget : 0;
+
+    const entries = rawEntries
+      .map((entry) => sanitizeEntry(entry))
+      .filter((entry) => entry !== null);
+    const recurringRules = rawRules
+      .map((rule) => sanitizeRecurringRule(rule))
+      .filter((rule) => rule !== null);
+
     return {
       budget,
-      entries: rawEntries
-        .map((entry) => sanitizeEntry(entry))
-        .filter((entry) => entry !== null),
-      recurringRules: rawRules
-        .map((rule) => sanitizeRecurringRule(rule))
-        .filter((rule) => rule !== null)
+      entries,
+      recurringRules,
+      settings: sanitizeSettings(parsed.settings),
+      categoryCatalog: sanitizeCategoryCatalog(parsed.categoryCatalog, entries, recurringRules)
     };
   } catch {
-    return { budget: 0, entries: [], recurringRules: [] };
+    return createDefaultState();
   }
+}
+
+function createDefaultState() {
+  return {
+    budget: 0,
+    entries: [],
+    recurringRules: [],
+    settings: sanitizeSettings(null),
+    categoryCatalog: buildDefaultCategoryCatalog()
+  };
+}
+
+function sanitizeSettings(settings) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  return {
+    defaultType: source.defaultType === "income" ? "income" : DEFAULT_SETTINGS.defaultType,
+    dataScope: source.dataScope === "all" ? "all" : DEFAULT_SETTINGS.dataScope,
+    monthStartDay: clampMonthStartDay(Number(source.monthStartDay)),
+    sortOrder: SORT_OPTIONS.has(source.sortOrder) ? source.sortOrder : DEFAULT_SETTINGS.sortOrder
+  };
+}
+
+function buildDefaultCategoryCatalog() {
+  return {
+    expense: EXPENSE_CATEGORIES.map((name, index) => ({
+      id: `expense_${index + 1}`,
+      name,
+      color: EXPENSE_CATEGORY_COLORS[index % EXPENSE_CATEGORY_COLORS.length]
+    })),
+    income: INCOME_CATEGORIES.map((name, index) => ({
+      id: `income_${index + 1}`,
+      name,
+      color: INCOME_CATEGORY_COLORS[index % INCOME_CATEGORY_COLORS.length]
+    }))
+  };
+}
+
+function sanitizeCategoryCatalog(rawCatalog, entries, recurringRules) {
+  const defaults = buildDefaultCategoryCatalog();
+  const incoming = rawCatalog && typeof rawCatalog === "object" ? rawCatalog : {};
+
+  const expense = normalizeCategoryList(
+    Array.isArray(incoming.expense) ? incoming.expense : defaults.expense,
+    defaults.expense
+  );
+  const income = normalizeCategoryList(
+    Array.isArray(incoming.income) ? incoming.income : defaults.income,
+    defaults.income
+  );
+
+  const catalog = { expense, income };
+  entries.forEach((entry) => ensureCategoryExists(catalog, entry.type, entry.category));
+  recurringRules.forEach((rule) => ensureCategoryExists(catalog, rule.type, rule.category));
+  ensureCategoryExists(catalog, "expense", "Other");
+  ensureCategoryExists(catalog, "income", "Other Income");
+  return catalog;
+}
+
+function normalizeCategoryList(rawList, fallback) {
+  const list = [];
+  const used = new Set();
+  rawList.forEach((item, index) => {
+    const name = String(item && item.name ? item.name : "").trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    if (used.has(key)) return;
+    used.add(key);
+
+    list.push({
+      id: String(item && item.id ? item.id : makeId()),
+      name,
+      color: normalizeColor(item && item.color ? item.color : fallback[index % fallback.length].color)
+    });
+  });
+
+  if (list.length === 0) {
+    return fallback.map((item) => ({ ...item }));
+  }
+  return list;
 }
 
 function readLegacyData() {
@@ -265,26 +423,242 @@ function formatPercent(value) {
   return `${Math.max(0, value).toFixed(1)}%`;
 }
 
-function categoriesFor(type) {
-  return type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+function clampMonthStartDay(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.min(28, Math.floor(parsed)));
+}
+
+function normalizeColor(value) {
+  const text = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(text)) return text.toLowerCase();
+  return "#2f7db5";
+}
+
+function ensureCategoryExists(catalog, type, rawName, preferredColor = "") {
+  const normalizedType = type === "income" ? "income" : "expense";
+  const name = String(rawName || "").trim();
+  if (!name) return null;
+
+  const list = catalog[normalizedType];
+  const existing = list.find((item) => item.name.toLowerCase() === name.toLowerCase());
+  if (existing) return existing;
+
+  const created = {
+    id: makeId(),
+    name,
+    color: normalizeColor(preferredColor || categoryFallbackColor(normalizedType, name))
+  };
+  list.push(created);
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  return created;
+}
+
+function categoryFallbackColor(type, seed) {
+  const palette = type === "income" ? INCOME_CATEGORY_COLORS : EXPENSE_CATEGORY_COLORS;
+  const hash = Array.from(String(seed || "x")).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return palette[hash % palette.length];
+}
+
+function getCategoryList(type) {
+  const normalizedType = type === "income" ? "income" : "expense";
+  const source = state.categoryCatalog[normalizedType] || [];
+  return source.slice().sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getCategoryByName(type, name) {
+  const normalizedType = type === "income" ? "income" : "expense";
+  return (state.categoryCatalog[normalizedType] || []).find(
+    (item) => item.name.toLowerCase() === String(name || "").trim().toLowerCase()
+  ) || null;
+}
+
+function getCategoryColor(type, name) {
+  const category = getCategoryByName(type, name);
+  return category ? category.color : normalizeColor(categoryFallbackColor(type, name));
+}
+
+function getFallbackCategoryName(type) {
+  return type === "income" ? "Other Income" : "Other";
+}
+
+function getCurrentBudgetRange() {
+  const today = todayDate();
+  const startDay = clampMonthStartDay(state.settings.monthStartDay);
+  let start;
+
+  if (today.getDate() >= startDay) {
+    start = new Date(today.getFullYear(), today.getMonth(), startDay);
+  } else {
+    start = new Date(today.getFullYear(), today.getMonth() - 1, startDay);
+  }
+
+  const end = new Date(start.getFullYear(), start.getMonth() + 1, start.getDate());
+  return { start, end };
+}
+
+function formatBudgetRangeLabel(range) {
+  if (state.settings.monthStartDay === 1) {
+    return `This month (${range.start.toLocaleDateString("en-US", { month: "short", year: "numeric" })})`;
+  }
+
+  const startLabel = range.start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const endLabel = new Date(range.end.getTime() - 86400000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `This cycle (${startLabel} - ${endLabel})`;
+}
+
+function isInRange(entry, range) {
+  const date = new Date(entry.createdAt);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getTime() >= range.start.getTime() && date.getTime() < range.end.getTime();
+}
+
+function getBudgetEntries() {
+  const range = getCurrentBudgetRange();
+  return state.entries.filter((entry) => isInRange(entry, range));
+}
+
+function getDataScopeEntries() {
+  if (state.settings.dataScope === "all") return state.entries.slice();
+  return getBudgetEntries();
+}
+
+function formatDataScopeLabel() {
+  if (state.settings.dataScope === "all") return "All time";
+  return formatBudgetRangeLabel(getCurrentBudgetRange());
+}
+
+function parseMoneyInput(value) {
+  const text = String(value || "").trim();
+  if (!text) return { ok: false, message: "Amount is required." };
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed)) return { ok: false, message: "Enter a valid number." };
+  if (parsed < 0) return { ok: false, message: "Amount cannot be negative." };
+  return { ok: true, value: parsed };
+}
+
+function setFieldError(node, message) {
+  if (!node) return;
+  node.textContent = message;
+  node.classList.add("is-error");
+}
+
+function clearFieldError(node) {
+  if (!node) return;
+  node.textContent = "";
+  node.classList.remove("is-error");
+}
+
+function validateAmountInput(normalize) {
+  if (!normalize && String(el.amountInput.value || "").trim() === "") {
+    clearFieldError(el.amountInlineError);
+    return true;
+  }
+  const parsed = parseMoneyInput(el.amountInput.value);
+  if (!parsed.ok) {
+    setFieldError(el.amountInlineError, parsed.message);
+    return false;
+  }
+  clearFieldError(el.amountInlineError);
+  if (normalize) {
+    el.amountInput.value = parsed.value.toFixed(2);
+  }
+  return true;
+}
+
+function validateBudgetInput(normalize) {
+  if (String(el.budgetInput.value || "").trim() === "") {
+    clearFieldError(el.budgetInlineError);
+    return true;
+  }
+  const parsed = parseMoneyInput(el.budgetInput.value);
+  if (!parsed.ok) {
+    setFieldError(el.budgetInlineError, parsed.message);
+    return false;
+  }
+  clearFieldError(el.budgetInlineError);
+  if (normalize) {
+    el.budgetInput.value = parsed.value.toFixed(2);
+  }
+  return true;
+}
+
+function validateEditAmountInput(normalize) {
+  if (!normalize && String(el.editAmountInput.value || "").trim() === "") {
+    clearFieldError(el.editAmountInlineError);
+    return true;
+  }
+  const parsed = parseMoneyInput(el.editAmountInput.value);
+  if (!parsed.ok) {
+    setFieldError(el.editAmountInlineError, parsed.message);
+    return false;
+  }
+  clearFieldError(el.editAmountInlineError);
+  if (normalize) {
+    el.editAmountInput.value = parsed.value.toFixed(2);
+  }
+  return true;
+}
+
+function focusAmountInput() {
+  if (!el.amountInput) return;
+  el.amountInput.focus();
+}
+
+function handleAddEntryKeydown(event) {
+  if (event.key !== "Enter") return;
+  const target = event.target;
+  if (target instanceof HTMLButtonElement) return;
+  if (target instanceof HTMLTextAreaElement) return;
+  event.preventDefault();
+  addEntry();
+}
+
+function setDataScope(scope) {
+  const next = scope === "all" ? "all" : "month";
+  if (state.settings.dataScope === next) return;
+  state.settings.dataScope = next;
+  save();
+  renderSummary();
+  renderTable();
+  drawCharts();
+}
+
+function saveMonthStartDay() {
+  state.settings.monthStartDay = clampMonthStartDay(el.monthStartInput.value);
+  el.monthStartInput.value = String(state.settings.monthStartDay);
+  save();
+  renderSummary();
+  renderTable();
+  drawCharts();
 }
 
 function refreshCategoryInput() {
-  const type = el.typeInput.value;
-  const dynamic = Array.from(new Set(state.entries.filter((e) => e.type === type).map((e) => e.category))).sort();
-  const choices = Array.from(new Set([...categoriesFor(type), ...dynamic]));
+  const type = el.typeInput.value === "income" ? "income" : "expense";
+  const current = el.categoryInput.value;
+  const categories = getCategoryList(type);
+  if (categories.length === 0) {
+    ensureCategoryExists(state.categoryCatalog, type, getFallbackCategoryName(type));
+  }
 
+  const list = getCategoryList(type);
   el.categoryInput.innerHTML = "";
-  choices.forEach((name) => {
+  list.forEach((category) => {
     const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
+    opt.value = category.name;
+    opt.textContent = category.name;
     el.categoryInput.appendChild(opt);
   });
+
+  if (list.some((item) => item.name === current)) {
+    el.categoryInput.value = current;
+  } else {
+    el.categoryInput.value = list[0] ? list[0].name : "";
+  }
 }
 
 function refreshFilterCategories() {
-  const categories = Array.from(new Set(state.entries.map((e) => e.category))).sort();
+  const categories = Array.from(new Set(getDataScopeEntries().map((entry) => entry.category))).sort();
   const current = el.filterCategory.value;
 
   el.filterCategory.innerHTML = "<option value='all'>All</option>";
@@ -298,28 +672,249 @@ function refreshFilterCategories() {
   el.filterCategory.value = categories.includes(current) ? current : "all";
 }
 
+function openCategoryDialog() {
+  el.categoryManagerType.value = el.typeInput.value === "income" ? "income" : "expense";
+  el.newCategoryNameInput.value = "";
+  el.newCategoryColorInput.value = normalizeColor(categoryFallbackColor(el.categoryManagerType.value, "new"));
+  renderCategoryManager();
+  openDialog(el.categoryDialog);
+}
+
+function closeCategoryDialog() {
+  closeDialog(el.categoryDialog);
+}
+
+function renderCategoryManager() {
+  const type = el.categoryManagerType.value === "income" ? "income" : "expense";
+  const list = getCategoryList(type);
+  el.newCategoryColorInput.value = normalizeColor(categoryFallbackColor(type, "new"));
+  el.categoryManagerList.innerHTML = "";
+
+  if (list.length === 0) {
+    const li = document.createElement("li");
+    li.className = "recurring-empty";
+    li.textContent = "No categories yet.";
+    el.categoryManagerList.appendChild(li);
+    return;
+  }
+
+  const usageMap = new Map();
+  state.entries.forEach((entry) => {
+    if (entry.type !== type) return;
+    usageMap.set(entry.category, (usageMap.get(entry.category) || 0) + 1);
+  });
+  state.recurringRules.forEach((rule) => {
+    if (rule.type !== type) return;
+    usageMap.set(rule.category, (usageMap.get(rule.category) || 0) + 1);
+  });
+
+  list.forEach((category) => {
+    const li = document.createElement("li");
+    li.className = "category-manager-item";
+
+    const color = document.createElement("input");
+    color.type = "color";
+    color.className = "category-color-input";
+    color.value = normalizeColor(category.color);
+    color.dataset.action = "category-color";
+    color.dataset.id = category.id;
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "category-name-input";
+    nameInput.value = category.name;
+    nameInput.dataset.action = "category-rename";
+    nameInput.dataset.id = category.id;
+
+    const usage = document.createElement("span");
+    usage.className = "category-usage";
+    usage.textContent = `${usageMap.get(category.name) || 0} uses`;
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "btn";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.dataset.action = "category-delete";
+    deleteBtn.dataset.id = category.id;
+
+    li.appendChild(color);
+    li.appendChild(nameInput);
+    li.appendChild(usage);
+    li.appendChild(deleteBtn);
+    el.categoryManagerList.appendChild(li);
+  });
+}
+
+function addManagedCategory() {
+  const type = el.categoryManagerType.value === "income" ? "income" : "expense";
+  const name = String(el.newCategoryNameInput.value || "").trim();
+  if (!name) {
+    setStatus("Category name is required.");
+    return;
+  }
+
+  const exists = getCategoryList(type).some((item) => item.name.toLowerCase() === name.toLowerCase());
+  if (exists) {
+    setStatus("Category already exists.");
+    return;
+  }
+
+  ensureCategoryExists(state.categoryCatalog, type, name, el.newCategoryColorInput.value);
+  el.newCategoryNameInput.value = "";
+  save();
+  refreshCategoryInput();
+  refreshEditCategoryInput();
+  refreshFilterCategories();
+  renderCategoryManager();
+  renderTopCategoryFilters();
+  setStatus("Category added.");
+}
+
+function handleCategoryManagerListChange(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const action = target.dataset.action;
+  const id = target.dataset.id;
+  if (!action || !id) return;
+
+  const type = el.categoryManagerType.value === "income" ? "income" : "expense";
+  const list = state.categoryCatalog[type];
+  const category = list.find((item) => item.id === id);
+  if (!category) return;
+
+  if (action === "category-color" && target instanceof HTMLInputElement) {
+    category.color = normalizeColor(target.value);
+    save();
+    renderTopCategoryFilters();
+    renderTable();
+    return;
+  }
+
+  if (action === "category-rename" && target instanceof HTMLInputElement) {
+    const nextName = String(target.value || "").trim();
+    if (!nextName) {
+      setStatus("Category name cannot be blank.");
+      target.value = category.name;
+      return;
+    }
+
+    const duplicate = list.some((item) => item.id !== category.id && item.name.toLowerCase() === nextName.toLowerCase());
+    if (duplicate) {
+      setStatus("Category rename failed: that name already exists.");
+      target.value = category.name;
+      return;
+    }
+
+    const oldName = category.name;
+    category.name = nextName;
+    state.entries.forEach((entry) => {
+      if (entry.type === type && entry.category === oldName) {
+        entry.category = nextName;
+      }
+    });
+    state.recurringRules.forEach((rule) => {
+      if (rule.type === type && rule.category === oldName) {
+        rule.category = nextName;
+      }
+    });
+
+    if (el.categoryInput.value === oldName) el.categoryInput.value = nextName;
+    if (el.filterCategory.value === oldName) el.filterCategory.value = nextName;
+    if (el.editCategoryInput.value === oldName) el.editCategoryInput.value = nextName;
+
+    save();
+    render();
+    renderCategoryManager();
+    setStatus("Category renamed.");
+  }
+}
+
+function handleCategoryManagerListClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.dataset.action !== "category-delete") return;
+  const id = target.dataset.id;
+  if (!id) return;
+
+  const type = el.categoryManagerType.value === "income" ? "income" : "expense";
+  const list = state.categoryCatalog[type];
+  const category = list.find((item) => item.id === id);
+  if (!category) return;
+
+  const fallback = getFallbackCategoryName(type);
+  if (category.name === fallback) {
+    setStatus("Keep at least one fallback category for this type.");
+    return;
+  }
+
+  const usageCount = state.entries.filter((entry) => entry.type === type && entry.category === category.name).length +
+    state.recurringRules.filter((rule) => rule.type === type && rule.category === category.name).length;
+  if (!confirm(`Delete "${category.name}"? ${usageCount} uses will move to "${fallback}".`)) return;
+
+  ensureCategoryExists(state.categoryCatalog, type, fallback);
+  state.entries.forEach((entry) => {
+    if (entry.type === type && entry.category === category.name) {
+      entry.category = fallback;
+    }
+  });
+  state.recurringRules.forEach((rule) => {
+    if (rule.type === type && rule.category === category.name) {
+      rule.category = fallback;
+    }
+  });
+
+  state.categoryCatalog[type] = list.filter((item) => item.id !== id);
+  save();
+  render();
+  renderCategoryManager();
+  setStatus("Category deleted.");
+}
+
+function handleTopCategoryFilterClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const button = target.closest("button[data-category]");
+  if (!button) return;
+
+  const category = button.dataset.category;
+  if (!category) return;
+  el.filterCategory.value = el.filterCategory.value === category ? "all" : category;
+  renderTable();
+}
+
 function addEntry() {
-  const type = el.typeInput.value;
+  const type = el.typeInput.value === "income" ? "income" : "expense";
   const category = (el.categoryInput.value || "").trim();
-  const amount = Number(el.amountInput.value);
+  const parsedAmount = parseMoneyInput(el.amountInput.value);
   const note = (el.noteInput.value || "").trim();
 
-  if (!category) return setStatus("Pick a category.");
-  if (!Number.isFinite(amount) || amount < 0) return setStatus("Enter a valid amount.");
+  if (!category) {
+    setStatus("Pick a category.");
+    return;
+  }
 
+  if (!parsedAmount.ok) {
+    setFieldError(el.amountInlineError, parsedAmount.message);
+    setStatus(parsedAmount.message);
+    return;
+  }
+
+  clearFieldError(el.amountInlineError);
+  ensureCategoryExists(state.categoryCatalog, type, category);
   state.entries.unshift({
     id: makeId(),
     type,
     category,
-    amount,
+    amount: parsedAmount.value,
     note,
     createdAt: new Date().toISOString()
   });
 
   if (el.recurringToggleInput.checked) {
-    createRecurringRuleFromForm({ type, category, amount, note });
+    createRecurringRuleFromForm({ type, category, amount: parsedAmount.value, note });
   }
 
+  state.settings.defaultType = type;
   save();
   clearForm();
   render();
@@ -346,18 +941,26 @@ function createRecurringRuleFromForm(entry) {
 }
 
 function clearForm() {
+  el.typeInput.value = state.settings.defaultType;
   refreshCategoryInput();
   el.amountInput.value = "";
+  clearFieldError(el.amountInlineError);
   el.noteInput.value = "";
   el.recurringToggleInput.checked = false;
   el.recurringFrequencyInput.value = "monthly";
   el.recurringStartInput.value = toDateInputValue(todayDate());
+  focusAmountInput();
 }
 
 function saveBudget() {
-  const budget = Number(el.budgetInput.value);
-  if (!Number.isFinite(budget) || budget < 0) return setStatus("Enter a valid budget.");
-  state.budget = budget;
+  if (!validateBudgetInput(true)) {
+    setStatus("Enter a valid budget.");
+    return;
+  }
+
+  const parsed = parseMoneyInput(el.budgetInput.value);
+  state.budget = parsed.ok ? parsed.value : 0;
+  el.budgetInput.value = state.budget ? state.budget.toFixed(2) : "";
   save();
   renderSummary();
   setStatus("Budget goal saved.");
@@ -399,6 +1002,7 @@ function toggleSampleData() {
     { id: makeId(), type: "expense", category: "Utilities", amount: 160, note: "Electric and water", createdAt: daysAgo(5), meta: { sample: true } }
   ];
 
+  sampleEntries.forEach((entry) => ensureCategoryExists(state.categoryCatalog, entry.type, entry.category));
   if (state.budget === 0) {
     state.budget = 3000;
   }
@@ -410,10 +1014,14 @@ function toggleSampleData() {
 }
 
 function render() {
+  el.typeInput.value = state.settings.defaultType;
+  el.monthStartInput.value = String(clampMonthStartDay(state.settings.monthStartDay));
+  el.sortInput.value = SORT_OPTIONS.has(state.settings.sortOrder) ? state.settings.sortOrder : DEFAULT_SETTINGS.sortOrder;
   refreshCategoryInput();
   refreshFilterCategories();
   refreshSampleButton();
-  el.budgetInput.value = state.budget || "";
+  renderStorageInfo();
+  el.budgetInput.value = state.budget ? state.budget.toFixed(2) : "";
   if (!el.recurringStartInput.value) {
     el.recurringStartInput.value = toDateInputValue(todayDate());
   }
@@ -423,9 +1031,20 @@ function render() {
   drawCharts();
 }
 
+function renderStorageInfo() {
+  if (storageAdapter.mode === "cloud-stub") {
+    el.storageModeLabel.textContent = "Data is still stored in this browser. Cloud mode is a local stub mirror for architecture testing.";
+    el.syncModeLabel.textContent = "Sync Now writes a cloud-stub snapshot locally. No account-connected backend is active yet.";
+    return;
+  }
+  el.storageModeLabel.textContent = "Data is stored in this browser (localStorage). Export backups to move data between devices.";
+  el.syncModeLabel.textContent = "Sync Now needs cloud mode enabled with ?cloudSync=1 and currently uses a local stub payload.";
+}
+
 function refreshSampleButton() {
   const hasSample = state.entries.some(isSampleEntry);
   el.sampleDataBtn.textContent = hasSample ? "Clear Sample Data" : "Load Sample Data";
+  el.demoBanner.hidden = !hasSample;
 }
 
 function renderRecurringRules() {
@@ -521,29 +1140,46 @@ function filteredEntries() {
   const type = el.filterType.value;
   const category = el.filterCategory.value;
   const search = el.searchInput.value.trim().toLowerCase();
+  const sort = SORT_OPTIONS.has(el.sortInput.value) ? el.sortInput.value : DEFAULT_SETTINGS.sortOrder;
 
-  return state.entries.filter((e) => {
+  const rows = getDataScopeEntries().filter((e) => {
     if (type !== "all" && e.type !== type) return false;
     if (category !== "all" && e.category !== category) return false;
     if (search && !(e.category.toLowerCase().includes(search) || (e.note || "").toLowerCase().includes(search))) return false;
     return true;
   });
+
+  rows.sort((a, b) => {
+    if (sort === "date_asc") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    if (sort === "date_desc") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (sort === "amount_asc") return a.amount - b.amount;
+    if (sort === "amount_desc") return b.amount - a.amount;
+    return 0;
+  });
+
+  return rows;
 }
 
 function renderSummary() {
-  const income = state.entries.filter((e) => e.type === "income").reduce((sum, e) => sum + e.amount, 0);
-  const expense = state.entries.filter((e) => e.type === "expense").reduce((sum, e) => sum + e.amount, 0);
+  const scoped = getBudgetEntries();
+  const income = scoped.filter((e) => e.type === "income").reduce((sum, e) => sum + e.amount, 0);
+  const expense = scoped.filter((e) => e.type === "expense").reduce((sum, e) => sum + e.amount, 0);
   const balance = income - expense;
   const left = state.budget - expense;
+  const range = getCurrentBudgetRange();
 
   el.incomeTotal.textContent = formatMoney(income);
   el.expenseTotal.textContent = formatMoney(expense);
   el.balanceTotal.textContent = formatMoney(balance);
   el.budgetGoal.textContent = formatMoney(state.budget);
   el.budgetLeft.textContent = formatMoney(left);
+  el.budgetScopeLabel.textContent = formatBudgetRangeLabel(range);
 
   el.balanceTotal.style.color = balance < 0 ? "var(--bad)" : "var(--good)";
   el.budgetLeft.style.color = left < 0 ? "var(--bad)" : "var(--good)";
+  el.scopeMonthBtn.classList.toggle("is-active", state.settings.dataScope === "month");
+  el.scopeAllBtn.classList.toggle("is-active", state.settings.dataScope === "all");
+  el.dataScopeLabel.textContent = `Showing: ${formatDataScopeLabel()}`;
   renderBudgetProgress(expense, left);
 }
 
@@ -576,7 +1212,45 @@ function renderBudgetProgress(expense, left) {
   el.budgetProgressLabel.textContent = `${formatPercent(percentUsed)} used. ${formatMoney(Math.max(left, 0))} left this month.`;
 }
 
+function renderTopCategoryFilters() {
+  if (!el.topCategoryFilters) return;
+  el.topCategoryFilters.innerHTML = "";
+  const scopeRows = getDataScopeEntries();
+  const activeType = el.filterType.value;
+  const type = activeType === "income" ? "income" : "expense";
+  const candidates = scopeRows.filter((entry) => entry.type === type);
+
+  const totals = new Map();
+  candidates.forEach((entry) => {
+    totals.set(entry.category, (totals.get(entry.category) || 0) + entry.amount);
+  });
+
+  const top = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  if (top.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "top-cat-empty";
+    empty.textContent = "No category activity in this view.";
+    el.topCategoryFilters.appendChild(empty);
+    return;
+  }
+
+  top.forEach(([category]) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn top-cat-btn";
+    if (el.filterCategory.value === category) {
+      btn.classList.add("is-active");
+    }
+    btn.dataset.category = category;
+    btn.style.setProperty("--cat-color", getCategoryColor(type, category));
+    btn.textContent = category;
+    el.topCategoryFilters.appendChild(btn);
+  });
+}
+
 function renderTable() {
+  refreshFilterCategories();
+  renderTopCategoryFilters();
   const rows = filteredEntries();
   el.rows.innerHTML = "";
   const fragment = document.createDocumentFragment();
@@ -585,7 +1259,7 @@ function renderTable() {
     const tr = document.createElement("tr");
     appendCell(tr, formatDateTime(entry.createdAt));
     appendTypeCell(tr, entry.type);
-    appendCell(tr, entry.category);
+    appendCategoryCell(tr, entry.category, getCategoryColor(entry.type, entry.category));
     appendMoneyCell(tr, entry.amount, entry.type);
     appendCell(tr, entry.note || "");
 
@@ -627,10 +1301,12 @@ function exportBackup() {
   const snapshot = {
     exportedAt: new Date().toISOString(),
     app: "BudgetBeacon",
-    version: 1,
+    version: 2,
     budget: state.budget,
     entries: state.entries,
-    recurringRules: state.recurringRules
+    recurringRules: state.recurringRules,
+    settings: state.settings,
+    categoryCatalog: state.categoryCatalog
   };
 
   const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
@@ -657,6 +1333,7 @@ function importBackupFromFile(event) {
       const importedEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
       const importedRules = Array.isArray(parsed.recurringRules) ? parsed.recurringRules : [];
       const importedBudget = Number(parsed.budget || 0);
+      const importedSettings = sanitizeSettings(parsed.settings);
 
       if (!confirm("Import this backup? This will replace your current web data.")) {
         el.importFileInput.value = "";
@@ -670,6 +1347,8 @@ function importBackupFromFile(event) {
         .map((rule) => sanitizeRecurringRule(rule))
         .filter((rule) => rule !== null);
       state.budget = Number.isFinite(importedBudget) && importedBudget >= 0 ? importedBudget : 0;
+      state.settings = importedSettings;
+      state.categoryCatalog = sanitizeCategoryCatalog(parsed.categoryCatalog, state.entries, state.recurringRules);
 
       const added = applyRecurringEntries();
       save();
@@ -740,15 +1419,15 @@ function openEditDialog(id) {
 
   el.editTypeInput.value = entry.type;
   refreshEditCategoryInput(entry.category);
-  el.editAmountInput.value = String(entry.amount);
+  el.editAmountInput.value = Number(entry.amount).toFixed(2);
+  clearFieldError(el.editAmountInlineError);
   el.editNoteInput.value = entry.note || "";
   openDialog(el.editDialog);
 }
 
 function refreshEditCategoryInput(selected = "") {
-  const type = el.editTypeInput.value;
-  const dynamic = Array.from(new Set(state.entries.filter((e) => e.type === type).map((e) => e.category))).sort();
-  const choices = Array.from(new Set([...categoriesFor(type), ...dynamic]));
+  const type = el.editTypeInput.value === "income" ? "income" : "expense";
+  const choices = getCategoryList(type).map((category) => category.name);
 
   el.editCategoryInput.innerHTML = "";
   choices.forEach((name) => {
@@ -760,6 +1439,8 @@ function refreshEditCategoryInput(selected = "") {
 
   if (selected && choices.includes(selected)) {
     el.editCategoryInput.value = selected;
+  } else if (choices.length > 0) {
+    el.editCategoryInput.value = choices[0];
   }
 }
 
@@ -772,16 +1453,21 @@ function saveEditedEntry(event) {
 
   const type = el.editTypeInput.value;
   const category = (el.editCategoryInput.value || "").trim();
-  const amount = Number(el.editAmountInput.value);
+  const parsedAmount = parseMoneyInput(el.editAmountInput.value);
   const note = (el.editNoteInput.value || "").trim();
 
   if (!category) return setStatus("Edit failed: pick a category.");
-  if (!Number.isFinite(amount) || amount < 0) return setStatus("Edit failed: enter a valid amount.");
+  if (!parsedAmount.ok) {
+    setFieldError(el.editAmountInlineError, parsedAmount.message);
+    return setStatus("Edit failed: enter a valid amount.");
+  }
+  clearFieldError(el.editAmountInlineError);
 
   entry.type = type;
   entry.category = category;
-  entry.amount = amount;
+  entry.amount = parsedAmount.value;
   entry.note = note;
+  ensureCategoryExists(state.categoryCatalog, type, category);
 
   save();
   render();
@@ -791,6 +1477,7 @@ function saveEditedEntry(event) {
 
 function closeEditDialog() {
   editingEntryId = null;
+  clearFieldError(el.editAmountInlineError);
   closeDialog(el.editDialog);
 }
 
@@ -809,15 +1496,21 @@ function drawMonthChart() {
   const barColor = getCssVar("--accent", "#0f6bff");
   const labelColor = getCssVar("--muted", "#5e6a79");
 
+  const scopedExpenses = getDataScopeEntries().filter((e) => e.type === "expense");
+  if (scopedExpenses.length < 3) {
+    drawCenterText(ctx, canvas, "Add 3+ expenses to see trends.");
+    return;
+  }
+
   const map = new Map();
-  state.entries.filter((e) => e.type === "expense").forEach((e) => {
+  scopedExpenses.forEach((e) => {
     const month = e.createdAt.slice(0, 7);
     map.set(month, (map.get(month) || 0) + e.amount);
   });
 
   const months = Array.from(map.keys()).sort().slice(-6);
   if (!months.length) {
-    drawCenterText(ctx, canvas, "No expense data yet");
+    drawCenterText(ctx, canvas, "Add 3+ expenses to see trends.");
     return;
   }
 
@@ -861,14 +1554,20 @@ function drawCategoryChart() {
   const trackColor = getCssVar("--accent-soft", "#e4efff");
   const barColor = getCssVar("--accent-alt", "#198754");
 
+  const scopedExpenses = getDataScopeEntries().filter((e) => e.type === "expense");
+  if (scopedExpenses.length < 3) {
+    drawCenterText(ctx, canvas, "Add 3+ expenses to see category insights.");
+    return;
+  }
+
   const totals = new Map();
-  state.entries.filter((e) => e.type === "expense").forEach((e) => {
+  scopedExpenses.forEach((e) => {
     totals.set(e.category, (totals.get(e.category) || 0) + e.amount);
   });
 
   const top = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
   if (!top.length) {
-    drawCenterText(ctx, canvas, "No category data yet");
+    drawCenterText(ctx, canvas, "Add 3+ expenses to see category insights.");
     return;
   }
 
@@ -940,7 +1639,9 @@ function inferStatusTone(message) {
     text.includes("could not") ||
     text.includes("unavailable") ||
     text.includes("enter a valid") ||
-    text.includes("pick a category")
+    text.includes("pick a category") ||
+    text.includes("required") ||
+    text.includes("cannot be negative")
   ) {
     return "error";
   }
@@ -976,6 +1677,16 @@ function appendTypeCell(row, type) {
   const chip = document.createElement("span");
   chip.className = `type-chip ${type === "income" ? "income" : "expense"}`;
   chip.textContent = type;
+  td.appendChild(chip);
+  row.appendChild(td);
+}
+
+function appendCategoryCell(row, category, color) {
+  const td = document.createElement("td");
+  const chip = document.createElement("span");
+  chip.className = "category-chip";
+  chip.style.setProperty("--cat-color", normalizeColor(color));
+  chip.textContent = category;
   td.appendChild(chip);
   row.appendChild(td);
 }

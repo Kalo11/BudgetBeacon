@@ -1,11 +1,18 @@
-# Step 6 QA Checklist (Modernized Web App)
+# Step 7 QA Checklist (Modernized Web App)
 
 ## Desktop Browser
 - Open `http://localhost:8000`.
 - Confirm hero/topbar, stats, budget progress bar, form panel, table, and charts render without overlap.
 - Add income and expense entries; verify totals and budget progress update.
+- Confirm amount field autofocuses and pressing `Enter` in Add Entry saves the entry.
+- Confirm money type defaults to last used value after each save.
 - Confirm entry `Type` renders as badge chips and `Amount` styling reflects type.
 - Verify `X shown` count updates when filters/search change.
+- Confirm `This Month / All Time` scope toggle updates table and charts.
+- Confirm `Sort` dropdown reorders entries (date and amount modes).
+- Change `Start Month On Day` and verify budget totals/scope label update.
+- Open `Manage Categories`; verify add/rename/color/delete works and updates table + filters.
+- Click top-category chips and confirm category filter toggles.
 - Enter invalid amount/budget values and confirm status banner shows error-style feedback.
 - Trigger successful actions (save, edit, delete, export) and confirm status banner uses success style.
 - Click `Sync Now (Cloud)` with and without cloud flag and confirm info/error status messaging is clear.
@@ -15,17 +22,19 @@
 - Confirm cards reflow cleanly and no text is cut off.
 - Confirm the form panel is not sticky on narrow widths.
 - Confirm filter controls stack and remain usable.
+- Confirm scope toggle and top-category chips remain usable on narrow widths.
 - Confirm table area scrolls horizontally when needed.
 - Confirm `Edit` and `Delete` buttons remain usable on narrow screens.
 
 ## Empty Data
 - Clear all entries.
 - Confirm empty-state text appears.
-- Confirm charts show `No ... data yet` messages.
+- Confirm charts show `Add 3+ expenses ...` messages.
 - Confirm budget progress reads setup guidance when budget goal is `0`.
 
 ## Large Data
 - Load sample data repeatedly or import a large backup.
+- Confirm demo banner appears when sample data is loaded and hides when cleared.
 - Confirm filtering/search remains responsive.
 - Confirm chart rendering remains stable after window resize.
 

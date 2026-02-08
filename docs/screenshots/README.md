@@ -9,6 +9,8 @@ Drop screenshots into this folder using these canonical names:
 Optional modern UI captures:
 - `budget-progress.png` (budget usage bar states)
 - `entries-table-modern.png` (type chips + amount styling)
+- `category-manager.png` (manage categories dialog)
+- `scope-toggle.png` (`This Month` / `All Time` + sort controls)
 
 Capture tips:
 - Use realistic sample data (income + expenses in different categories).

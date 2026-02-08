@@ -11,6 +11,9 @@ BudgetBeacon is a personal budget tracker with two interfaces:
 - Tone-aware status banner for success/error/info feedback
 - Better responsive behavior across desktop/tablet/mobile breakpoints
 - Reduced-motion support and accessible live-status region
+- Quick-entry workflow (last-used type, amount autofocus, Enter-to-save, inline validation)
+- Category management dialog (add/rename/delete/color)
+- View scope controls (`This Month` / `All Time`) with sortable entry table
 
 ## Screenshots
 Add screenshots to `docs/screenshots/` and update these links:
@@ -49,12 +52,16 @@ python budget_app.py
 
 ## Core Features
 - Add income and expense entries
+- Fast add-entry flow with inline validation and Enter-to-save
 - Edit and delete existing entries
 - Recurring entry rules (weekly/monthly) with automatic due posting
 - Filter/search entries by type/category/text
-- Monthly budget goal plus live summary cards
+- Sort entries (date/amount) and switch data scope (`This Month` or `All Time`)
+- Monthly budget goal plus scoped summary cards
+- Configurable month start day (supports paycheck-style cycles)
 - Budget usage progress bar with over-budget warning state
 - Built-in charts (monthly expense trend, top expense categories)
+- Category manager (add/rename/delete/color) and clickable top-category filters
 - Modern table styling with type badges and entry count summary
 - Status banner with inferred message tones (success/error/info)
 - Backup/restore (web JSON export/import)
