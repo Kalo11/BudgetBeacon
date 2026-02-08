@@ -32,6 +32,8 @@ const DEFAULT_SETTINGS = {
 };
 
 const SORT_OPTIONS = new Set(["date_desc", "date_asc", "amount_desc", "amount_asc"]);
+const RECURRING_FREQUENCIES = new Set(["weekly", "bi-weekly", "semi-monthly", "monthly"]);
+const DEFAULT_RECURRING_FREQUENCY = "monthly";
 
 const onboardingSteps = [
   {
@@ -922,7 +924,7 @@ function addEntry() {
 }
 
 function createRecurringRuleFromForm(entry) {
-  const frequency = el.recurringFrequencyInput.value === "weekly" ? "weekly" : "monthly";
+  const frequency = normalizeRecurringFrequency(el.recurringFrequencyInput.value);
   const selectedDate = parseDateInput(el.recurringStartInput.value) || todayDate();
   const nextDueDate = normalizeNextDueDate(selectedDate, frequency, true);
 
@@ -947,7 +949,7 @@ function clearForm() {
   clearFieldError(el.amountInlineError);
   el.noteInput.value = "";
   el.recurringToggleInput.checked = false;
-  el.recurringFrequencyInput.value = "monthly";
+  el.recurringFrequencyInput.value = DEFAULT_RECURRING_FREQUENCY;
   el.recurringStartInput.value = toDateInputValue(todayDate());
   focusAmountInput();
 }
@@ -1395,7 +1397,7 @@ function sanitizeRecurringRule(rule) {
   const category = String(rule.category || "").trim();
   const amount = Number(rule.amount);
   const note = String(rule.note || "");
-  const frequency = rule.frequency === "weekly" ? "weekly" : "monthly";
+  const frequency = normalizeRecurringFrequency(rule.frequency);
   const nextDueDate = parseDateInput(rule.nextDue) || todayDate();
 
   if (!category || !Number.isFinite(amount) || amount < 0) return null;
@@ -1768,10 +1770,26 @@ function toDateInputValue(dateLike) {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeRecurringFrequency(value) {
+  const frequency = String(value || "").trim().toLowerCase();
+  return RECURRING_FREQUENCIES.has(frequency) ? frequency : DEFAULT_RECURRING_FREQUENCY;
+}
+
 function nextOccurrence(date, frequency) {
   const next = new Date(date);
-  if (frequency === "weekly") {
+  const normalizedFrequency = normalizeRecurringFrequency(frequency);
+
+  if (normalizedFrequency === "weekly") {
     next.setDate(next.getDate() + 7);
+  } else if (normalizedFrequency === "bi-weekly") {
+    next.setDate(next.getDate() + 14);
+  } else if (normalizedFrequency === "semi-monthly") {
+    if (next.getDate() < 15) {
+      next.setDate(15);
+    } else {
+      next.setMonth(next.getMonth() + 1);
+      next.setDate(1);
+    }
   } else {
     next.setMonth(next.getMonth() + 1);
   }

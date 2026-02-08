@@ -54,7 +54,7 @@ python budget_app.py
 - Add income and expense entries
 - Fast add-entry flow with inline validation and Enter-to-save
 - Edit and delete existing entries
-- Recurring entry rules (weekly/monthly) with automatic due posting
+- Recurring entry rules (weekly, bi-weekly, semi-monthly, monthly) with automatic due posting
 - Filter/search entries by type/category/text
 - Sort entries (date/amount) and switch data scope (`This Month` or `All Time`)
 - Monthly budget goal plus scoped summary cards

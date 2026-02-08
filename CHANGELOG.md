@@ -15,6 +15,7 @@ All notable changes to BudgetBeacon are documented here.
 - Entry count metadata and richer entry row rendering (type chips + styled money cells) (`webapp/index.html`, `webapp/app.js`, `webapp/styles.css`)
 - Tone-aware status presentation (`ok`, `error`, `info`) with inferred message classification (`webapp/app.js`, `webapp/styles.css`)
 - Modernized web styling system with updated typography, color tokens, and responsive polish (`webapp/styles.css`)
+- Recurring frequencies now include bi-weekly and semi-monthly options in addition to weekly/monthly (`webapp/index.html`, `webapp/app.js`, `README.md`)
 
 ### Changed
 - Web dashboard layout refreshed with improved information hierarchy and visual clarity (`webapp/index.html`, `webapp/styles.css`)
